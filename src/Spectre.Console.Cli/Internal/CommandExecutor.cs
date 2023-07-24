@@ -1,3 +1,6 @@
+using Spectre.Console.Cli.Internal;
+using Spectre.Console.Cli.Internal.Extensions;
+
 namespace Spectre.Console.Cli;
 
 internal sealed class CommandExecutor
@@ -121,7 +124,7 @@ internal sealed class CommandExecutor
             VersionHelper.GetVersion(Assembly.GetEntryAssembly());
     }
 
-    private static Task<int> Execute(
+    private static async Task<int> Execute(
         CommandTree leaf,
         CommandTree tree,
         CommandContext context,
@@ -141,6 +144,20 @@ internal sealed class CommandExecutor
         }
 
         // Execute the command.
-        return command.Execute(context, settings);
+        try
+        {
+            return await command.Execute(context, settings);
+        }
+        catch (Exception ex)
+        {
+            var handled = CommandExceptionHandler.HandleException(leaf, context, resolver, ex);
+            if (handled)
+            {
+                return -1;
+            }
+
+            // Exception will be re-thrown and original stack trace will be preserved
+            throw;
+        }
     }
 }
