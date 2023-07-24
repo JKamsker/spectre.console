@@ -1,6 +1,7 @@
 using Spectre.Console.Cli.Internal.Extensions;
 
 namespace Spectre.Console.Cli.Internal;
+
 internal static class CommandExceptionHandler
 {
     public static bool HandleException(
@@ -9,12 +10,12 @@ internal static class CommandExceptionHandler
         ITypeResolver resolver,
         Exception ex)
     {
+        var args = new CommandExceptionArgs(context, ex, leaf?.Command?.CommandType);
+
         if (leaf?.Command?.CommandType == null)
         {
-            return TryInvokeHandler(
-                context,
-                resolver,
-                ex,
+            return TryInvokeHandler(resolver,
+                args,
                 typeof(IEnumerable<ICommandExceptionHandler>),
                 typeof(ICommandExceptionHandler));
         }
@@ -25,20 +26,19 @@ internal static class CommandExceptionHandler
         var enumerableHandlerType = typeof(IEnumerable<>)
             .MakeGenericType(handlerType);
 
-        var handled = TryInvokeHandler(context, resolver, ex, enumerableHandlerType, handlerType);
+        var handled = TryInvokeHandler(resolver, args, enumerableHandlerType, handlerType);
         if (handled)
         {
             return true;
         }
 
-        return TryInvokeHandler(context, resolver, ex, typeof(IEnumerable<ICommandExceptionHandler>),
+        return TryInvokeHandler(resolver, args, typeof(IEnumerable<ICommandExceptionHandler>),
             typeof(ICommandExceptionHandler));
     }
 
     private static bool TryInvokeHandler(
-        CommandContext context,
         ITypeResolver resolver,
-        Exception ex,
+        CommandExceptionArgs args,
         Type enumerableHandlerType,
         Type handlerType)
     {
@@ -47,22 +47,22 @@ internal static class CommandExceptionHandler
         {
             foreach (var exHandlerItem in exHandlerEnumerable)
             {
-                var isHandled = exHandlerItem.Handle(context, ex);
+                var isHandled = exHandlerItem.Handle(args);
                 if (isHandled)
                 {
                     return true;
                 }
             }
         }
-
-        var handler = resolver.TryResolve(handlerType);
-        if (handler is not ICommandExceptionHandler exHandler)
+        else
         {
-            return false;
-        }
+            var handler = resolver.TryResolve(handlerType);
+            if (handler is not ICommandExceptionHandler exHandler)
+            {
+                return false;
+            }
 
-        {
-            var isHandled = exHandler.Handle(context, ex);
+            var isHandled = exHandler.Handle(args);
             if (isHandled)
             {
                 return true;
