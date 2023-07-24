@@ -14,7 +14,8 @@ internal static class CommandExceptionHandler
 
         if (leaf?.Command?.CommandType == null)
         {
-            return TryInvokeHandler(resolver,
+            return TryInvokeHandler(
+                resolver,
                 args,
                 typeof(IEnumerable<ICommandExceptionHandler>),
                 typeof(ICommandExceptionHandler));
