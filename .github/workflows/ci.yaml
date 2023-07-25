@@ -100,5 +100,5 @@ jobs:
         with:
           name: artifacts
           path: |
-            artifacts/
+            .artifacts/
           retention-days: 90
