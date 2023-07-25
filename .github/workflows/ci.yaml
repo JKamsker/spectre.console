@@ -90,3 +90,11 @@ jobs:
           name: verify-test-results
           path: |
             **/*.received.*
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: |
+            ./artifacts/
+          retention-days: 90
