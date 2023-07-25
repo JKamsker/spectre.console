@@ -70,9 +70,14 @@ internal class PowershellCompletionIntegration : Command<PowershellCompletionInt
         return result;
     }
 
-    private static StartArgs GetSelfStartCommandFromCommandLineArgs()
+    internal static StartArgs GetSelfStartCommandFromCommandLineArgs()
     {
         var args = Environment.GetCommandLineArgs();
+        return ParseStartArgs(args);
+    }
+
+    internal static StartArgs ParseStartArgs(params string[] args)
+    {
         var command = args[0];
         if (command.EndsWith(".dll"))
         {
@@ -87,11 +92,11 @@ internal class PowershellCompletionIntegration : Command<PowershellCompletionInt
             return new StartArgs(command, args[1]);
         }
 
-        return new StartArgs(string.Empty, args[1]);
+        return new StartArgs(string.Empty, args[0]);
     }
 
     // private record StartArgs(string Runtime, string Command)
-    private class StartArgs
+    internal class StartArgs
     {
         public string Runtime { get; }
         public string Command { get; }
