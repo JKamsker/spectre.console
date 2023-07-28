@@ -1,5 +1,4 @@
 using Spectre.Console.Cli.Internal;
-using Spectre.Console.Cli.Internal.Extensions;
 
 namespace Spectre.Console.Cli;
 
@@ -131,21 +130,21 @@ internal sealed class CommandExecutor
         ITypeResolver resolver,
         IConfiguration configuration)
     {
-        // Bind the command tree against the settings.
-        var settings = CommandBinder.Bind(tree, leaf.Command.SettingsType, resolver);
-        configuration.Settings.Interceptor?.Intercept(context, settings);
-
-        // Create and validate the command.
-        var command = leaf.CreateCommand(resolver);
-        var validationResult = command.Validate(context, settings);
-        if (!validationResult.Successful)
-        {
-            throw CommandRuntimeException.ValidationFailed(validationResult);
-        }
-
-        // Execute the command.
         try
         {
+            // Bind the command tree against the settings.
+            var settings = CommandBinder.Bind(tree, leaf.Command.SettingsType, resolver);
+            configuration.Settings.Interceptor?.Intercept(context, settings);
+
+            // Create and validate the command.
+            var command = leaf.CreateCommand(resolver);
+            var validationResult = command.Validate(context, settings);
+            if (!validationResult.Successful)
+            {
+                throw CommandRuntimeException.ValidationFailed(validationResult);
+            }
+
+            // Execute the command.
             return await command.Execute(context, settings);
         }
         catch (Exception ex)
