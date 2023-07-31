@@ -70,7 +70,9 @@ public class CompletionResult : ICompletionResult
     /// <summary>
     /// Initializes a new instance of the <see cref="CompletionResult"/> class.
     /// </summary>
-    public CompletionResult() { }
+    public CompletionResult()
+    {
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CompletionResult"/> class.
@@ -93,8 +95,7 @@ public class CompletionResult : ICompletionResult
     /// <exception cref="ArgumentNullException">Thrown when the <paramref name="suggestions"/> are <c>null</c>.</exception>
     public CompletionResult(
         IEnumerable<CompletionResultItem> suggestions,
-        bool preventDefault = false
-    )
+        bool preventDefault = false)
     {
         Suggestions = suggestions ?? throw new ArgumentNullException(nameof(suggestions));
         PreventDefault = preventDefault;
