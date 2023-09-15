@@ -10,77 +10,78 @@ internal sealed class CommandExecutor
     {
         _registrar = registrar ?? throw new ArgumentNullException(nameof(registrar));
         _registrar.Register(typeof(DefaultPairDeconstructor), typeof(DefaultPairDeconstructor));
-    }
-
+    }
+
     public async Task<int> Execute(IConfiguration configuration, IEnumerable<string> args)
     {
         if (configuration == null)
         {
             throw new ArgumentNullException(nameof(configuration));
-        }
-
-        _registrar.RegisterInstance(typeof(IConfiguration), configuration);
-        _registrar.RegisterLazy(typeof(IAnsiConsole), () => configuration.Settings.Console.GetConsole());
+        }
+
+        args ??= new List<string>();
+
+        _registrar.RegisterInstance(typeof(IConfiguration), configuration);
+        _registrar.RegisterLazy(typeof(IAnsiConsole), () => configuration.Settings.Console.GetConsole());
+
+        // Register the help provider
+        var defaultHelpProvider = new HelpProvider(configuration.Settings);
+        _registrar.RegisterInstance(typeof(IHelpProvider), defaultHelpProvider);
 
         // Create the command model.
         var model = CommandModelBuilder.Build(configuration);
         _registrar.RegisterInstance(typeof(CommandModel), model);
-        _registrar.RegisterDependencies(model);
-
-        // No default command?
-        if (model.DefaultCommand == null)
-        {
-            // Got at least one argument?
-            var firstArgument = args.FirstOrDefault();
-            if (firstArgument != null)
-            {
-                // Asking for version? Kind of a hack, but it's alright.
-                // We should probably make this a bit better in the future.
-                if (firstArgument.Equals("--version", StringComparison.OrdinalIgnoreCase) ||
-                    firstArgument.Equals("-v", StringComparison.OrdinalIgnoreCase))
-                {
-                    var console = configuration.Settings.Console.GetConsole();
-                    console.WriteLine(ResolveApplicationVersion(configuration));
-                    return 0;
-                }
-            }
-        }
+        _registrar.RegisterDependencies(model);
+
+        // Asking for version? Kind of a hack, but it's alright.
+        // We should probably make this a bit better in the future.
+        if (args.Contains("-v") || args.Contains("--version"))
+        {
+            var console = configuration.Settings.Console.GetConsole();
+            console.WriteLine(ResolveApplicationVersion(configuration));
+            return 0;
+        }
 
         // Parse and map the model against the arguments.
-        var parsedResult = ParseCommandLineArguments(model, configuration.Settings, args);
-
-        // Currently the root?
-        if (parsedResult?.Tree == null)
-        {
-            // Display help.
-            configuration.Settings.Console.SafeRender(HelpWriter.Write(model, configuration.Settings.ShowOptionDefaultValues));
-            return 0;
-        }
-
-        // Get the command to execute.
-        var leaf = parsedResult.Tree.GetLeafCommand();
-        if (leaf.Command.IsBranch || leaf.ShowHelp)
-        {
-            // Branches can't be executed. Show help.
-            configuration.Settings.Console.SafeRender(HelpWriter.WriteCommand(model, leaf.Command, configuration.Settings.ShowOptionDefaultValues));
-            return leaf.ShowHelp ? 0 : 1;
-        }
-
-        // Is this the default and is it called without arguments when there are required arguments?
-        if (leaf.Command.IsDefaultCommand && args.Count() == 0 && leaf.Command.Parameters.Any(p => p.Required))
-        {
-            // Display help for default command.
-            configuration.Settings.Console.SafeRender(HelpWriter.WriteCommand(model, leaf.Command, configuration.Settings.ShowOptionDefaultValues));
-            return 1;
-        }
-
-        // Register the arguments with the container.
+        var parsedResult = ParseCommandLineArguments(model, configuration.Settings, args);
+
+        // Register the arguments with the container.
         _registrar.RegisterInstance(typeof(CommandTreeParserResult), parsedResult);
         _registrar.RegisterInstance(typeof(IRemainingArguments), parsedResult.Remaining);
 
-        // Create the resolver and the context.
+        // Create the resolver.
         using (var resolver = new TypeResolverAdapter(_registrar.Build()))
-        {
+        {
+            // Get the registered help provider, falling back to the default provider
+            // registered above if no custom implementations have been registered.
+            var helpProvider = resolver.Resolve(typeof(IHelpProvider)) as IHelpProvider ?? defaultHelpProvider;
+
+            // Currently the root?
+            if (parsedResult?.Tree == null)
+            {
+                // Display help.
+                configuration.Settings.Console.SafeRender(helpProvider.Write(model, null));
+                return 0;
+            }
+
+            // Get the command to execute.
+            var leaf = parsedResult.Tree.GetLeafCommand();
+            if (leaf.Command.IsBranch || leaf.ShowHelp)
+            {
+                // Branches can't be executed. Show help.
+                configuration.Settings.Console.SafeRender(helpProvider.Write(model, leaf.Command));
+                return leaf.ShowHelp ? 0 : 1;
+            }
+
+            // Is this the default and is it called without arguments when there are required arguments?
+            if (leaf.Command.IsDefaultCommand && args.Count() == 0 && leaf.Command.Parameters.Any(p => p.Required))
+            {
+                // Display help for default command.
+                configuration.Settings.Console.SafeRender(helpProvider.Write(model, leaf.Command));
+                return 1;
+            }
+
+            // Create the content.
             var context = new CommandContext(parsedResult.Remaining, leaf.Command.Name, leaf.Command.Data);
 
             // Execute the command tree.
